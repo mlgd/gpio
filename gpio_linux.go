@@ -149,7 +149,7 @@ func read(path string) ([]byte, error) {
 
 // Close destroys the virtual files on the filesystem, unexporting the pin.
 func (p *pin) Close() error {
-	return writeFile(filepath.Join(gpiobase, "unexport"), "%d", p.number)
+	return writeFile(unexportPath, "%d", p.number)
 }
 
 // Mode retrieves the current mode of the pin.
@@ -260,7 +260,7 @@ func expose(pin int) (string, error) {
 	pinBase := filepath.Join(gpiobase, fmt.Sprintf("gpio%d", pin))
 	var err error
 	if _, statErr := os.Stat(pinBase); os.IsNotExist(statErr) {
-		err = writeFile(filepath.Join(gpiobase, "export"), "%d", pin)
+		err = writeFile(exportPath, "%d", pin)
 	}
 	return pinBase, err
 }
