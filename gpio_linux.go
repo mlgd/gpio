@@ -98,6 +98,7 @@ type pin struct {
 	modePath      string   // the path to the /direction FD to avoid string joining each time
 	edgePath      string   // the path to the /edge FD to avoid string joining each time
 	valueFile     *os.File // the file handle for the value file
+	currentMode   Mode     // the currentMode (in/out) / empty at start time
 	callback      IRQEvent // the callback function to call when an interrupt occurs
 	initial       bool     // is this the initial epoll trigger?
 	err           error    //the last error
@@ -107,7 +108,7 @@ type pin struct {
 // It also sets the mode for the pin, making it ready for use.
 func OpenPin(n int, mode Mode) (Pin, error) {
 	// export this pin to create the virtual files on the system
-	pinBase, err := expose(n)
+	pinBase, exposed, err := expose(n)
 	if err != nil {
 		return nil, err
 	}
@@ -121,6 +122,9 @@ func OpenPin(n int, mode Mode) (Pin, error) {
 		edgePath:  filepath.Join(pinBase, "edge"),
 		valueFile: value,
 		initial:   true,
+	}
+	if exposed {
+		p.currentMode = p.GetMode()
 	}
 	if err := p.setMode(mode); err != nil {
 		p.Close()
@@ -171,7 +175,8 @@ func (p *pin) GetMode() Mode {
 }
 
 func (p *pin) setMode(mode Mode) error {
-	if p.GetMode() != mode {
+	if p.currentMode != mode {
+		p.currentMode = mode
 		return write([]byte(mode), p.modePath)
 	} else {
 		return nil
@@ -256,13 +261,16 @@ func (p *pin) Err() error {
 	return p.err
 }
 
-func expose(pin int) (string, error) {
+func expose(pin int) (string, bool, error) {
+	exposed := false
 	pinBase := filepath.Join(gpiobase, fmt.Sprintf("gpio%d", pin))
 	var err error
 	if _, statErr := os.Stat(pinBase); os.IsNotExist(statErr) {
 		err = writeFile(exportPath, "%d", pin)
+	} else {
+		exposed = true
 	}
-	return pinBase, err
+	return pinBase, exposed, err
 }
 
 func writeFile(path string, format string, args ...interface{}) error {
